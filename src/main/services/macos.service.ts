@@ -178,6 +178,25 @@ export class MacOSService {
         return path.join(bottle, "drive_c", "Program Files (x86)", "Steam");
     }
 
+    /**
+     * Converts a macOS path to its Windows form inside the bottle. Needed for
+     * arguments passed to Windows programs (e.g. IPA.exe): wine resolves unix
+     * paths for the executable it launches, but a Windows program receiving a
+     * unix path treats it as rooted on the current drive and resolves it to a
+     * nonexistent C:\ location.
+     */
+    public posixPathToWine(posixPath: string): string {
+        const bottle = this.getBottlePath();
+        if (bottle) {
+            const driveC = path.join(bottle, "drive_c");
+            if (posixPath.startsWith(driveC + path.sep)) {
+                return `C:\\${posixPath.substring(driveC.length + 1).split(path.sep).join("\\")}`;
+            }
+        }
+        // Paths outside the bottle go through the Z: drive (mapped to /)
+        return `Z:${posixPath.split("/").join("\\")}`;
+    }
+
     // === Launching === //
 
     /**

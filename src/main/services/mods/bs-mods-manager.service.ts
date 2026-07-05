@@ -226,12 +226,15 @@ export class BsModsManagerService {
                 throw new CustomError("Could not find MoltenVR wine bottle (WINEPREFIX)", "no-wineprefix");
             }
 
+            // IPA.exe resolves its arguments as Windows paths, convert them
+            const wineCommand = `"${macos.posixPathToWine(ipaPath)}" "${macos.posixPathToWine(beatSaberExePath)}" ${args.join(" ")}`;
+
             return {
                 env: {
                     ...process.env,
                     ...macos.buildEnvVariables(),
                 },
-                command: `"${macWinePath}" ${command}`,
+                command: `"${macWinePath}" ${wineCommand}`,
             };
         }
 
