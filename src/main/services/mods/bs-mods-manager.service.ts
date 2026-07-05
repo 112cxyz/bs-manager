@@ -14,6 +14,7 @@ import { copyFile, ensureDir, pathExistsSync, readdirSync } from "fs-extra";
 import { CustomError } from "shared/models/exceptions/custom-error.class";
 import { popElement } from "shared/helpers/array.helpers";
 import { LinuxService } from "../linux.service";
+import { MacOSService } from "../macos.service";
 import { tryit } from "shared/helpers/error.helpers";
 import crypto from "crypto";
 import { BsmZipExtractor } from "main/models/bsm-zip-extractor.class";
@@ -208,6 +209,29 @@ export class BsModsManagerService {
             return {
                 env: { ...process.env },
                 command,
+            };
+        }
+
+        // macOS: run IPA.exe through the MoltenVR bottle's wine
+        if (process.platform === "darwin") {
+            const macos = MacOSService.getInstance();
+            const { error: macWineError, result: macWinePath } = tryit(() => macos.getWinePath());
+            if (macWineError) {
+                log.error(macWineError);
+                return null;
+            }
+
+            const winePrefix = macos.getWinePrefixPath();
+            if (!winePrefix) {
+                throw new CustomError("Could not find MoltenVR wine bottle (WINEPREFIX)", "no-wineprefix");
+            }
+
+            return {
+                env: {
+                    ...process.env,
+                    ...macos.buildEnvVariables(),
+                },
+                command: `"${macWinePath}" ${command}`,
             };
         }
 

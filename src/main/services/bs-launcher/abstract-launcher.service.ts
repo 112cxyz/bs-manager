@@ -4,6 +4,7 @@ import { ChildProcessWithoutNullStreams, SpawnOptionsWithoutStdio } from "child_
 import log from "electron-log";
 import { sToMs } from "../../../shared/helpers/time.helpers";
 import { LinuxService } from "../linux.service";
+import { MacOSService } from "../macos.service";
 import { BsmShellLog, bsmSpawn } from "main/helpers/os.helpers";
 import { IS_FLATPAK } from "main/constants";
 import { LaunchMods } from "shared/models/bs-launch/launch-option.interface";
@@ -34,10 +35,12 @@ export function buildBsLaunchArgs(launchOptions: LaunchOption): string[] {
 export abstract class AbstractLauncherService {
 
     protected readonly linux = LinuxService.getInstance();
+    protected readonly macos = MacOSService.getInstance();
     protected readonly localVersions = BSLocalVersionService.getInstance();
 
     constructor(){
         this.linux = LinuxService.getInstance();
+        this.macos = MacOSService.getInstance();
         this.localVersions = BSLocalVersionService.getInstance();
     }
 

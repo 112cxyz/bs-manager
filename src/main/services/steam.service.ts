@@ -9,6 +9,8 @@ import { isElevated } from "query-process";
 import { execOnOs } from "../helpers/env.helpers";
 import { pathExists, pathExistsSync, readdir, writeFile } from "fs-extra";
 import { SteamShortcut, SteamShortcutData } from "../../shared/models/steam/shortcut.model";
+import { MacOSService } from "./macos.service";
+import { bsmSpawn } from "main/helpers/os.helpers";
 
 const { list } = (execOnOs({ win32: () => require("regedit-rs") }, true) ?? {}) as typeof import("regedit-rs");
 
@@ -29,6 +31,10 @@ export class SteamService {
     }
 
     public async getActiveUser(): Promise<number> {
+        if (process.platform === "darwin") {
+            // Steam runs inside the MoltenVR wine bottle, read its registry file directly
+            return MacOSService.getInstance().getSteamActiveUser();
+        }
         const res = await list("HKCU\\Software\\Valve\\Steam\\ActiveProcess");
         const key = res["HKCU\\Software\\Valve\\Steam\\ActiveProcess"];
         if (!key.exists) {
@@ -78,6 +84,10 @@ export class SteamService {
             case "linux":
                 this.steamPath = path.join(app.getPath("home"), ".steam", "steam");
                 return this.steamPath;
+            case "darwin":
+                // Windows Steam inside the MoltenVR wine bottle
+                this.steamPath = MacOSService.getInstance().getSteamPath();
+                return this.steamPath;
             case "win32": {
                 const res = await list(["HKLM\\SOFTWARE\\Valve\\Steam", "HKLM\\SOFTWARE\\WOW6432Node\\Valve\\Steam"]);
                 const win64 = res["HKLM\\SOFTWARE\\Valve\\Steam"];
@@ -119,7 +129,11 @@ export class SteamService {
                 }
 
                 if (libraryFolders[libKey].apps[gameId] != null) {
-                    const commonFolder = path.join(libraryFolders[libKey].path, "steamapps", "common");
+                    // Under the MoltenVR bottle the vdf contains Windows paths (e.g. "C:\\...")
+                    const libraryPath = process.platform === "darwin"
+                        ? MacOSService.getInstance().winePathToPosix(libraryFolders[libKey].path)
+                        : libraryFolders[libKey].path;
+                    const commonFolder = path.join(libraryPath, "steamapps", "common");
                     return gameFolder ? path.join(commonFolder, gameFolder) : commonFolder;
                 }
             }
@@ -132,7 +146,22 @@ export class SteamService {
     }
 
     public async openSteam(): Promise<void> {
-        await shell.openExternal("steam://open/games");
+        if (process.platform === "darwin") {
+            // steam:// URLs can't reach the wine-bottled Steam; start it through wine
+            // with the same flags MoltenVR uses (CEF GPU compositing is broken under wine)
+            const macos = MacOSService.getInstance();
+            const steamExe = path.join(await this.getSteamPath(), "steam.exe");
+            bsmSpawn(`"${macos.getWinePath()}" "${steamExe}" -silent -noreactlogin -cef-disable-gpu -cef-disable-gpu-compositing`, {
+                options: {
+                    detached: true,
+                    shell: true,
+                    env: { ...process.env, ...macos.buildEnvVariables() },
+                    cwd: await this.getSteamPath(),
+                },
+            });
+        } else {
+            await shell.openExternal("steam://open/games");
+        }
 
         return new Promise((resolve, reject) => {
             // Every 3 seconds check if steam is running

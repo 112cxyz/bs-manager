@@ -4,6 +4,7 @@ import { copyDirectoryWithJunctions, deleteFolder, ensureFolderExist } from "../
 import { tryit } from "../../shared/helpers/error.helpers";
 import { pathExistsSync } from "fs-extra";
 import { StaticConfigurationService } from "./static-configuration.service";
+import { MacOSService } from "./macos.service";
 
 export class InstallationLocationService {
     private static instance: InstallationLocationService;
@@ -39,6 +40,11 @@ export class InstallationLocationService {
         if (process.platform === "linux") {
             this.installPath = process.env.XDG_DATA_HOME
                 || path.join(process.env.HOME, ".local", "share");
+        } else if (process.platform === "darwin") {
+            // Default inside the MoltenVR wine bottle so instances are visible
+            // from inside wine (C:\users\<user>\BSManager) and to MoltenVR's scanner
+            this.installPath = MacOSService.getInstance().getWineUserDir()
+                || app.getPath("home");
         } else {
             this.installPath = app.getPath("home");
         }

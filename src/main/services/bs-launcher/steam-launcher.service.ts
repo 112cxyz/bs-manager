@@ -166,13 +166,27 @@ export class SteamLauncherService extends AbstractLauncherService implements Sto
                 ));
             }
 
+            // macOS setup (MoltenVR wine bottle)
+            if (process.platform === "darwin") {
+                if (launchOptions.admin) {
+                    log.warn("Launching as admin is not supported on macOS! Starting the game as a normal user.");
+                    launchOptions.admin = false;
+                }
+
+                Object.assign(env, this.macos.buildEnvVariables());
+            }
+
+            const commandReplacement = process.platform === "win32"
+                ? `"${bsExePath}"`
+                : process.platform === "darwin"
+                    ? `${this.macos.getWineLaunchPrefix()} "${bsExePath}"`
+                    : `${await this.linux.getProtonPrefix()} "${bsExePath}"`;
+
             const {
                 env: parsedEnv,
                 cmdlet, args
             } = parseLaunchOptions(launchOptions.command, {
-                commandReplacement: process.platform === "win32"
-                    ? `"${bsExePath}"`
-                    : `${await this.linux.getProtonPrefix()} "${bsExePath}"`,
+                commandReplacement,
             });
             env = this.mergeEnvVariables(env, parsedEnv);
 

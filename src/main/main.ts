@@ -136,7 +136,8 @@ if (!gotTheLock) {
             DeepLinkService.getInstance().dispatchLinkOpened(deepLink);
         } else if (associatedFile) {
             FileAssociationService.getInstance().handleFileAssociation(associatedFile);
-        } else if (process.platform === "linux") {
+        } else if (process.platform === "linux" || process.platform === "darwin") {
+            // No auto-update launcher outside Windows
             createWindow("index.html");
         } else {
             const configService =  StaticConfigurationService.getInstance();

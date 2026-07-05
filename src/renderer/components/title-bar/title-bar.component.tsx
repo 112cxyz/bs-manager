@@ -75,7 +75,8 @@ function AutoUpdateButton({ latestVersion }: Readonly<{
     const ipcService = useService(IpcService);
     const { text: t } = useTranslationV2();
 
-    const isLinux = window.electron.platform === "linux";
+    // No auto-updater outside Windows
+    const isLinux = window.electron.platform !== "win32";
 
     const updateAndRestart = async () => {
         await configService.set("auto-update", AutoUpdate.ONCE);

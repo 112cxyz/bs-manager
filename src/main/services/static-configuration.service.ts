@@ -72,6 +72,9 @@ export interface StaticConfigKeyValues {
     // Linux Specific static configs
     "proton-folder": string;
     "versions": BSVersion[];
+
+    // macOS Specific static configs (MoltenVR wine bottle path)
+    "moltenvr-bottle": string;
 };
 
 export type StaticConfigKeys = keyof StaticConfigKeyValues;

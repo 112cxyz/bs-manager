@@ -6,7 +6,7 @@ const config = {
     ],
     productName: "BSManager",
     appId: "io.bsmanager.bsmanager",
-    asarUnpack: "**\\*.{node,dll}",
+    asarUnpack: "**/*.{node,dll}",
     files: [
         "dist/**/*",
         "node_modules",
@@ -28,6 +28,30 @@ const config = {
             "./build/icons/win",
             "./assets/scripts/*.exe"
         ],
+    },
+    mac: {
+        target: [
+            { target: "dmg", arch: ["arm64"] },
+            { target: "zip", arch: ["arm64"] },
+        ],
+        icon: "./build/icons/mac/icon.icns",
+        category: "public.app-category.games",
+        // No signing identity yet; notarize.js already skips outside CI
+        identity: null,
+        extraResources: [
+            "./build/icons/png",
+            "./assets/scripts/DepotDownloader-macos"
+        ],
+        protocols: {
+            name: "BSManager",
+            schemes: [
+                "bsmanager",
+                "beatsaver",
+                "bsplaylist",
+                "modelsaber",
+                "web+bsmap",
+            ],
+        },
     },
     linux: {
         target: [

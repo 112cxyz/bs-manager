@@ -10,7 +10,9 @@ export class DepotDownloader {
 
     private static readonly EXE_PATH = path.join(
         UtilsService.getInstance().getAssetsScriptsPath(),
-        process.platform === "win32" ? "DepotDownloader.exe" : "DepotDownloader"
+        process.platform === "win32" ? "DepotDownloader.exe"
+            : process.platform === "darwin" ? "DepotDownloader-macos"
+            : "DepotDownloader"
     );
 
     private process: ChildProcessWithoutNullStreams;

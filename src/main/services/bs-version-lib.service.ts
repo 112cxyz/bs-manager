@@ -39,7 +39,8 @@ export class BSVersionLibService {
     private async getLocalVersions(): Promise<BSVersion[]> {
         const localVersionsPath = path.join(this.utilsService.getAssestsJsonsPath(), this.VERSIONS_FILE);
 
-        if (process.platform !== "linux") {
+        // On Linux/macOS the app bundle is read-only, versions are cached in the config store
+        if (process.platform === "win32") {
             return readJSON(localVersionsPath);
         }
 
@@ -51,7 +52,7 @@ export class BSVersionLibService {
     }
 
     private async updateLocalVersions(versions: BSVersion[]): Promise<void> {
-        if (process.platform === "linux") {
+        if (process.platform !== "win32") {
             this.configService.set("versions", versions);
             return;
         }
