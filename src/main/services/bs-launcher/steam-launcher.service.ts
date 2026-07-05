@@ -1,7 +1,7 @@
 import { Observable } from "rxjs";
 import { BSLaunchError, BSLaunchEvent, BSLaunchEventData, BSLaunchWarning, LaunchOption } from "../../../shared/models/bs-launch";
 import { StoreLauncherInterface } from "./store-launcher.interface";
-import { pathExists, rename } from "fs-extra";
+import { pathExists, rename, writeFile } from "fs-extra";
 import { SteamService } from "../steam.service";
 import path from "path";
 import { BS_APP_ID, BS_EXECUTABLE, STEAMVR_APP_ID } from "../../constants";
@@ -174,6 +174,11 @@ export class SteamLauncherService extends AbstractLauncherService implements Sto
                 }
 
                 Object.assign(env, this.macos.buildEnvVariables());
+
+                // Fallback for SteamAPI_Init in case the env vars don't reach the
+                // game process; MoltenVR ships both when launching exes directly
+                await writeFile(path.join(bsFolderPath, "steam_appid.txt"), BS_APP_ID)
+                    .catch(err => log.warn("Could not write steam_appid.txt", err));
             }
 
             const commandReplacement = process.platform === "win32"
