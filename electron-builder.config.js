@@ -36,8 +36,9 @@ const config = {
         ],
         icon: "./build/icons/mac/icon.icns",
         category: "public.app-category.games",
-        // No signing identity yet; notarize.js already skips outside CI
-        identity: null,
+        // No Developer ID yet, so electron-builder falls back to ad-hoc signing,
+        // which arm64 macOS requires (fully unsigned binaries are SIGKILLed).
+        // notarize.js already skips outside CI.
         extraResources: [
             "./build/icons/png",
             "./assets/scripts/DepotDownloader-macos"

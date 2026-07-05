@@ -5,7 +5,6 @@ import { readFile } from "fs/promises";
 import log from "electron-log";
 import { app, shell } from "electron";
 import { getProcessId, isProcessRunning } from "main/helpers/os.helpers";
-import { isElevated } from "query-process";
 import { execOnOs } from "../helpers/env.helpers";
 import { pathExists, pathExistsSync, readdir, writeFile } from "fs-extra";
 import { SteamShortcut, SteamShortcutData } from "../../shared/models/steam/shortcut.model";
@@ -13,6 +12,8 @@ import { MacOSService } from "./macos.service";
 import { bsmSpawn } from "main/helpers/os.helpers";
 
 const { list } = (execOnOs({ win32: () => require("regedit-rs") }, true) ?? {}) as typeof import("regedit-rs");
+// query-process has no darwin build; elevation is a Windows-only concern anyway
+const { isElevated } = (execOnOs({ win32: () => require("query-process"), linux: () => require("query-process") }, true) ?? {}) as typeof import("query-process");
 
 export class SteamService {
     private static readonly PROCESS_NAME: string = process.platform === "linux" ? "steam-runtime-launcher-service" : "steam.exe";
@@ -66,6 +67,10 @@ export class SteamService {
      * @returns true if the Steam process is running as administrator
      */
     public async isElevated(): Promise<boolean> {
+        if (process.platform === "darwin") {
+            return false;
+        }
+
         const steamPid = await this.getSteamPid();
 
         if (!steamPid) {
