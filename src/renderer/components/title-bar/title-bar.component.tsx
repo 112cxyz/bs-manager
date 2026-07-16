@@ -121,6 +121,10 @@ function AutoUpdateButton({ latestVersion }: Readonly<{
     );
 }
 
+// On macOS the native traffic lights are overlaid on the title bar (titleBarStyle: "hidden"),
+// so the custom window buttons are not rendered and the drag region is padded to clear them.
+const IS_MAC = window.electron.platform === "darwin";
+
 export default function TitleBar({ template = "index.html" }: { template: AppWindow }) {
     const audio = useService(AudioPlayerService);
     const windowControls = useWindowControls();
@@ -170,7 +174,7 @@ export default function TitleBar({ template = "index.html" }: { template: AppWin
         return (
             <header id="titlebar" className="min-h-[22px] w-screen h-[22px] flex content-center items-center justify-start z-10 shrink-0">
                 <div id="drag-region" className="grow basis-0 h-full">
-                    <div id="window-title" className="pl-1">
+                    <div id="window-title" className={IS_MAC ? "pl-[74px]" : "pl-1"}>
                         <span className="text-gray-800 dark:text-gray-100 font-bold text-xs italic">BSManager</span>
                         <TitleBarTags version={currentVersion} latestVersion={latestVersion} />
                     </div>
@@ -183,6 +187,7 @@ export default function TitleBar({ template = "index.html" }: { template: AppWin
                         <BsmButton className="shrink-0 h-[23px] w-[23px] aspect-square !bg-transparent flex items-start" iconClassName={volumeIcon === "volume-down" ? "-translate-x-[1.8px]" : null} icon={volumeIcon} withBar={false} onClick={() => audio.toggleMute()} />
                     </div>
                     <AutoUpdateButton latestVersion={latestVersion} />
+                    {!IS_MAC && <>
                     <button onClick={minimizeWindow} className="text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-[#4F545C] cursor-pointer w-11 h-full shrink-0 flex justify-center items-center" id="min-button">
                         <svg aria-hidden="false" width="12" height="12" viewBox="0 0 12 12">
                             <rect fill="currentColor" width="10" height="1" x="1" y="6" />
@@ -205,6 +210,7 @@ export default function TitleBar({ template = "index.html" }: { template: AppWin
                             <polygon fill="currentColor" fillRule="evenodd" points="11 1.576 6.583 6 11 10.424 10.424 11 6 6.583 1.576 11 1 10.424 5.417 6 1 1.576 1.576 1 6 5.417 10.424 1" />
                         </svg>
                     </button>
+                    </>}
                 </div>
             </header>
         );
@@ -220,17 +226,19 @@ export default function TitleBar({ template = "index.html" }: { template: AppWin
     return (
         <header id="titlebar" className="min-h-[22px] bg-transparent w-screen h-[22px] flex content-center items-center justify-start z-10">
             <div id="drag-region" className="grow h-full">
-                <div id="window-title" className="pl-1">
+                <div id="window-title" className={IS_MAC ? "pl-[74px]" : "pl-1"}>
                     <span className="text-gray-100 font-bold text-xs italic">BSManager</span>
                 </div>
             </div>
-            <div id="window-controls" className="h-full flex shrink-0">
-                <div onClick={closeWindow} className="text-gray-200 cursor-pointer w-7 h-full shrink-0 flex justify-center items-center rounded-bl-md" id="close-button" draggable="false">
-                    <svg aria-hidden="false" width="12" height="12" viewBox="0 0 12 12">
-                        <polygon fill="currentColor" fillRule="evenodd" points="11 1.576 6.583 6 11 10.424 10.424 11 6 6.583 1.576 11 1 10.424 5.417 6 1 1.576 1.576 1 6 5.417 10.424 1" />
-                    </svg>
+            {!IS_MAC && (
+                <div id="window-controls" className="h-full flex shrink-0">
+                    <div onClick={closeWindow} className="text-gray-200 cursor-pointer w-7 h-full shrink-0 flex justify-center items-center rounded-bl-md" id="close-button" draggable="false">
+                        <svg aria-hidden="false" width="12" height="12" viewBox="0 0 12 12">
+                            <polygon fill="currentColor" fillRule="evenodd" points="11 1.576 6.583 6 11 10.424 10.424 11 6 6.583 1.576 11 1 10.424 5.417 6 1 1.576 1.576 1 6 5.417 10.424 1" />
+                        </svg>
+                    </div>
                 </div>
-            </div>
+            )}
         </header>
     );
 }

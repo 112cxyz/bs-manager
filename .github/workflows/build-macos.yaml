@@ -1,0 +1,58 @@
+# Builds the macOS (Apple Silicon) dmg + zip.
+# Runs on every push to the macos-moltenvr branch and on demand; pushing a tag
+# additionally attaches the artifacts to a GitHub release.
+#
+# Signing: without a Developer ID in CI, electron-builder falls back to ad-hoc
+# signing (required on arm64). Notarization (.erb/scripts/notarize.js) only runs
+# when APPLE_ID and APPLE_APP_SPECIFIC_PASSWORD secrets are configured.
+
+name: Build macOS
+
+on:
+    push:
+        branches: ["macos-moltenvr"]
+        tags: ["v*"]
+    workflow_dispatch:
+
+jobs:
+    build:
+        runs-on: macos-latest
+
+        steps:
+            - name: Check out Git repository
+              uses: actions/checkout@v4
+
+            - name: Use Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 24.11.1
+                  cache: "npm"
+
+            - run: npm ci
+
+            - name: Build and package
+              run: npm run package
+              env:
+                  APPLE_ID: ${{ secrets.APPLE_ID }}
+                  APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+
+            - name: Upload artifacts
+              uses: actions/upload-artifact@v4
+              with:
+                  name: release-macos-arm64
+                  path: |
+                      release/build/*.dmg
+                      release/build/*.zip
+                      release/build/*.blockmap
+                      release/build/latest-mac.yml
+                  if-no-files-found: error
+
+            - name: Attach to GitHub release
+              if: startsWith(github.ref, 'refs/tags/v')
+              uses: softprops/action-gh-release@v2
+              with:
+                  draft: true
+                  files: |
+                      release/build/*.dmg
+                      release/build/*.zip
+                      release/build/latest-mac.yml

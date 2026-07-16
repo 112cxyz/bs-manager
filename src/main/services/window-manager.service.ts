@@ -29,8 +29,11 @@ export class WindowManagerService {
             ? this.utilsService.getBuildPath(path.join("icons", "png", "256x256.png"))
             : this.utilsService.getBuildPath(path.join("icons", "win", "favicon.ico")),
         show: false,
-        frame: false,
-        titleBarOverlay: false,
+        // On macOS keep the native traffic lights overlaid on the custom title bar
+        // (frame: false would remove them entirely); elsewhere the renderer draws its own controls.
+        ...(process.platform === "darwin"
+            ? { titleBarStyle: "hidden" as const, trafficLightPosition: { x: 9, y: 6 } }
+            : { frame: false, titleBarOverlay: false }),
         webPreferences: { preload: this.PRELOAD_PATH, webSecurity: !this.IS_DEBUG },
     };
 
@@ -70,7 +73,9 @@ export class WindowManagerService {
 
     public openWindow(url: AppWindow, options?: BrowserWindowConstructorOptions): Promise<BrowserWindow> {
         const windowType = url.split("?")[0];
-        const window = new BrowserWindow({ ...(this.appWindowsOptions[windowType] ?? {}), ...this.baseWindowOption, ...options });
+        // Windows explicitly requesting a frame (e.g. the Oculus login window) get the full native title bar back
+        const frameOverride: BrowserWindowConstructorOptions = options?.frame && process.platform === "darwin" ? { titleBarStyle: "default" } : {};
+        const window = new BrowserWindow({ ...(this.appWindowsOptions[windowType] ?? {}), ...this.baseWindowOption, ...options, ...frameOverride });
         return this.handleNewWindow(url, window);
     }
 

@@ -1,8 +1,17 @@
+import { execSync } from "child_process";
 import fs from "fs-extra";
 import log from "electron-log";
 import os from "os";
 import path from "path";
 import { StaticConfigurationService } from "./static-configuration.service";
+
+export type BottleSource = "moltenvr" | "whisky" | "crossover" | "external";
+
+export interface MoltenVRBottle {
+    name: string;
+    path: string; // WINEPREFIX (contains drive_c)
+    source: BottleSource;
+}
 
 /**
  * macOS support is built around MoltenVR (https://github.com/...), which runs the
@@ -40,31 +49,115 @@ export class MacOSService {
 
     // === Bottle (WINEPREFIX) === //
 
+    private readonly WHISKY_BOTTLES_DIR = path.join(os.homedir(), "Library", "Containers", "com.franke.Whisky", "Bottles");
+    private readonly CROSSOVER_BOTTLES_DIR = path.join(os.homedir(), "Library", "Application Support", "CrossOver", "Bottles");
+    private readonly CROSSOVER_WINE = "/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/wine";
+    // MoltenVR stores user-added bottle scan locations (e.g. external drives) in its
+    // preferences under "extraBottleDirs" as a Data blob containing a JSON string array.
+    private readonly MOLTENVR_DEFAULTS_DOMAINS = ["dev.moltenvr.app", "dev.moltenvr.preview"];
+
+    private isWinePrefix(dir: string): boolean {
+        return fs.pathExistsSync(path.join(dir, "drive_c"));
+    }
+
+    private listPrefixesIn(dir: string): string[] {
+        if (!fs.pathExistsSync(dir)) {
+            return [];
+        }
+        return fs.readdirSync(dir)
+            .map(name => path.join(dir, name))
+            .filter(bottle => this.isWinePrefix(bottle));
+    }
+
+    private getExtraBottleDirs(): string[] {
+        const dirs: string[] = [];
+        for (const domain of this.MOLTENVR_DEFAULTS_DOMAINS) {
+            const plist = path.join(os.homedir(), "Library", "Preferences", `${domain}.plist`);
+            if (!fs.pathExistsSync(plist)) {
+                continue;
+            }
+            try {
+                const b64 = execSync(`plutil -extract extraBottleDirs raw -o - "${plist}"`, { encoding: "utf-8" }).trim();
+                const paths: string[] = JSON.parse(Buffer.from(b64, "base64").toString("utf-8"));
+                dirs.push(...paths);
+            } catch (e) {
+                // key absent or unreadable - nothing to scan
+            }
+        }
+        return Array.from(new Set(dirs));
+    }
+
+    /**
+     * All wine bottles on the system, mirroring MoltenVR's own bottle scanner
+     * (BottleManager.scan): MoltenVR's Bottles dir, Whisky, CrossOver, and any
+     * extra scan locations the user added in MoltenVR (e.g. external drives).
+     */
+    public listBottles(): MoltenVRBottle[] {
+        const bottles: MoltenVRBottle[] = [];
+
+        for (const prefix of this.listPrefixesIn(this.DEFAULT_BOTTLES_DIR)) {
+            bottles.push({ name: path.basename(prefix), path: prefix, source: "moltenvr" });
+        }
+
+        for (const prefix of this.listPrefixesIn(this.WHISKY_BOTTLES_DIR)) {
+            bottles.push({ name: `Whisky: ${path.basename(prefix)}`, path: prefix, source: "whisky" });
+        }
+
+        if (fs.pathExistsSync(this.CROSSOVER_WINE)) {
+            for (const prefix of this.listPrefixesIn(this.CROSSOVER_BOTTLES_DIR)) {
+                bottles.push({ name: `CrossOver: ${path.basename(prefix)}`, path: prefix, source: "crossover" });
+            }
+        }
+
+        for (const dir of this.getExtraBottleDirs()) {
+            for (const prefix of this.listPrefixesIn(dir)) {
+                bottles.push({ name: `External: ${path.basename(prefix)}`, path: prefix, source: "external" });
+            }
+        }
+
+        return bottles;
+    }
+
+    /**
+     * Ranks a bottle by how ready it is to run Beat Saber: the MoltenVR OpenXR
+     * runtime being registered matters most, then Steam being installed, then
+     * being a bottle MoltenVR itself created (default choice in MoltenVR too).
+     */
+    private scoreBottle(bottle: MoltenVRBottle): number {
+        let score = 0;
+        if (fs.pathExistsSync(path.join(bottle.path, "drive_c", "openxr", "moltenvr_openxr.json"))) {
+            score += 4;
+        }
+        if (fs.pathExistsSync(path.join(bottle.path, "drive_c", "Program Files (x86)", "Steam", "steam.exe"))) {
+            score += 2;
+        }
+        if (bottle.source === "moltenvr") {
+            score += 1;
+        }
+        return score;
+    }
+
     public getBottlePath(): string {
         if (this.staticConfig.has("moltenvr-bottle")) {
             const configured = this.staticConfig.get("moltenvr-bottle");
-            if (fs.pathExistsSync(path.join(configured, "drive_c"))) {
+            if (this.isWinePrefix(configured)) {
                 return configured;
             }
-            log.warn(`Configured MoltenVR bottle "${configured}" is not a valid wine prefix, falling back to default`);
+            log.warn(`Configured MoltenVR bottle "${configured}" is not a valid wine prefix, falling back to auto-detection`);
         }
 
-        // Default bottle, then any other bottle managed by MoltenVR
-        const defaultBottle = path.join(this.DEFAULT_BOTTLES_DIR, "MoltenVR");
-        if (fs.pathExistsSync(path.join(defaultBottle, "drive_c"))) {
-            return defaultBottle;
+        const bottles = this.listBottles();
+        if (bottles.length === 0) {
+            return null;
         }
 
-        if (fs.pathExistsSync(this.DEFAULT_BOTTLES_DIR)) {
-            const bottles = fs.readdirSync(this.DEFAULT_BOTTLES_DIR)
-                .map(name => path.join(this.DEFAULT_BOTTLES_DIR, name))
-                .filter(bottle => fs.pathExistsSync(path.join(bottle, "drive_c")));
-            if (bottles.length > 0) {
-                return bottles[0];
-            }
-        }
+        // Stable sort: best score first, MoltenVR's default bottle wins ties
+        const best = bottles
+            .map((bottle, index) => ({ bottle, score: this.scoreBottle(bottle), index }))
+            .sort((a, b) => b.score - a.score || a.index - b.index)[0].bottle;
 
-        return null;
+        log.info(`Auto-detected wine bottle "${best.name}" (${best.path}) among ${bottles.length} candidate(s)`);
+        return best.path;
     }
 
     public verifyBottlePath(bottlePath: string): boolean {
@@ -90,6 +183,11 @@ export class MacOSService {
                     return winePath;
                 }
                 log.warn(`Wine binary "${winePath}" from ${marker} not found, falling back to managed wine`);
+            }
+
+            // CrossOver bottles must run on CrossOver's own wine
+            if (bottle.startsWith(this.CROSSOVER_BOTTLES_DIR + path.sep) && fs.pathExistsSync(this.CROSSOVER_WINE)) {
+                return this.CROSSOVER_WINE;
             }
         }
 
@@ -219,6 +317,8 @@ export class MacOSService {
             SteamEnv: "1",
             MTL_DEBUG_LAYER: "0",
             MTL_SHADER_VALIDATION: "0",
+            // CrossOver's wine additionally wants the bottle name (see MoltenVR's BottleManager.wineEnv)
+            ...(bottle.startsWith(this.CROSSOVER_BOTTLES_DIR + path.sep) ? { CX_BOTTLE: path.basename(bottle) } : {}),
         };
     }
 
