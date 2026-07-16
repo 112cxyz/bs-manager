@@ -12,9 +12,9 @@ exports.default = async function notarizeMacos(context) {
     return;
   }
 
-  if (
-    !('APPLE_ID' in process.env && 'APPLE_APP_SPECIFIC_PASSWORD' in process.env)
-  ) {
+  // Check truthiness, not just presence: CI passes the secrets through as env
+  // vars, which are empty strings when the secrets are not configured.
+  if (!process.env.APPLE_ID || !process.env.APPLE_APP_SPECIFIC_PASSWORD) {
     console.warn(
       'Skipping notarizing step. APPLE_ID and APPLE_APP_SPECIFIC_PASSWORD env variables must be set',
     );
